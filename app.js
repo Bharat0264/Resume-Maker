@@ -9,6 +9,14 @@ const clearDataButton = document.querySelector("#clearData");
 const resumePreview = document.querySelector("#resumePreview");
 const pageCount = document.querySelector("#pageCount");
 const atsModeNote = document.querySelector("#atsModeNote");
+const cropModal = document.querySelector("#cropModal");
+const cropCanvas = document.querySelector("#cropCanvas");
+const cropZoom = document.querySelector("#cropZoom");
+const cropX = document.querySelector("#cropX");
+const cropY = document.querySelector("#cropY");
+const applyCropButton = document.querySelector("#applyCrop");
+const cancelCropButton = document.querySelector("#cancelCrop");
+const resetCropButton = document.querySelector("#resetCrop");
 
 const state = {
   personal: {
@@ -53,6 +61,12 @@ const templates = {
 
 const storageKey = "resume-maker-state-v3";
 const pageHeightLimit = 1120;
+const cropState = {
+  image: null,
+  zoom: 1,
+  x: 0,
+  y: 0
+};
 
 function loadState() {
   const saved = localStorage.getItem(storageKey);
@@ -434,6 +448,63 @@ function fillExample() {
   renderPreview();
 }
 
+function openCropper(dataUrl) {
+  const image = new Image();
+  image.onload = () => {
+    cropState.image = image;
+    resetCropValues();
+    cropModal.classList.add("is-open");
+    cropModal.setAttribute("aria-hidden", "false");
+    renderCropCanvas();
+  };
+  image.src = dataUrl;
+}
+
+function resetCropValues() {
+  cropState.zoom = 1;
+  cropState.x = 0;
+  cropState.y = 0;
+  cropZoom.value = "1";
+  cropX.value = "0";
+  cropY.value = "0";
+}
+
+function renderCropCanvas() {
+  if (!cropState.image) return;
+  const canvas = cropCanvas;
+  const context = canvas.getContext("2d");
+  const size = canvas.width;
+  const image = cropState.image;
+  const baseScale = Math.max(size / image.width, size / image.height);
+  const scale = baseScale * cropState.zoom;
+  const width = image.width * scale;
+  const height = image.height * scale;
+  const x = (size - width) / 2 + cropState.x;
+  const y = (size - height) / 2 + cropState.y;
+
+  context.clearRect(0, 0, size, size);
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, size, size);
+  context.drawImage(image, x, y, width, height);
+  context.strokeStyle = "rgba(255, 255, 255, 0.9)";
+  context.lineWidth = 2;
+  context.strokeRect(18, 18, size - 36, size - 36);
+}
+
+function closeCropper() {
+  cropModal.classList.remove("is-open");
+  cropModal.setAttribute("aria-hidden", "true");
+  photoInput.value = "";
+}
+
+function applyCroppedPhoto() {
+  if (!cropState.image) return;
+  state.photo = cropCanvas.toDataURL("image/jpeg", 0.92);
+  persist();
+  renderPreview();
+  closeCropper();
+}
+
 tabs.forEach((tab) => tab.addEventListener("click", () => switchTab(tab.dataset.tab)));
 
 form.addEventListener("input", (event) => {
@@ -476,11 +547,25 @@ photoInput.addEventListener("change", (event) => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    state.photo = reader.result;
-    persist();
-    renderPreview();
+    openCropper(reader.result);
   };
   reader.readAsDataURL(file);
+});
+
+[cropZoom, cropX, cropY].forEach((control) => {
+  control.addEventListener("input", () => {
+    cropState.zoom = Number(cropZoom.value);
+    cropState.x = Number(cropX.value);
+    cropState.y = Number(cropY.value);
+    renderCropCanvas();
+  });
+});
+
+applyCropButton.addEventListener("click", applyCroppedPhoto);
+cancelCropButton.addEventListener("click", closeCropper);
+resetCropButton.addEventListener("click", () => {
+  resetCropValues();
+  renderCropCanvas();
 });
 
 printButton.addEventListener("click", () => {

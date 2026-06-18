@@ -253,6 +253,75 @@ textarea:focus {
   text-decoration: underline;
 }
 
+.crop-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 20, 28, 0.58);
+  z-index: 20;
+}
+
+.crop-modal.is-open {
+  display: grid;
+}
+
+.crop-dialog {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 16px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+
+.crop-head,
+.crop-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crop-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.icon-button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--ink);
+  font-weight: 900;
+}
+
+#cropCanvas {
+  width: min(100%, 360px);
+  aspect-ratio: 1;
+  justify-self: center;
+  border-radius: 8px;
+  background: #eef3f6;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.crop-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.crop-controls label {
+  gap: 6px;
+}
+
+.crop-controls input {
+  padding: 0;
+}
+
 .entry-card {
   display: grid;
   gap: 10px;
@@ -587,7 +656,8 @@ textarea:focus {
   }
 
   .builder-panel,
-  .score-panel {
+  .score-panel,
+  .crop-modal {
     display: none;
   }
 
