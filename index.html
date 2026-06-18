@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resume Maker</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="builder-panel" aria-label="Resume details">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Resume Maker</p>
+            <h1>Build a polished resume in seconds</h1>
+          </div>
+          <button class="primary-action" id="printResume" type="button">Export PDF</button>
+        </header>
+
+        <nav class="tabs" aria-label="Resume sections">
+          <button class="tab is-active" type="button" data-tab="target">Target</button>
+          <button class="tab" type="button" data-tab="personal">Personal</button>
+          <button class="tab" type="button" data-tab="education">Education</button>
+          <button class="tab" type="button" data-tab="skills">Skills</button>
+          <button class="tab" type="button" data-tab="experience">Experience</button>
+          <button class="tab" type="button" data-tab="projects">Projects</button>
+          <button class="tab" type="button" data-tab="extras">Extras</button>
+        </nav>
+
+        <form id="resumeForm" class="form-stack" autocomplete="off">
+          <section class="tab-panel is-active" data-panel="target">
+            <div class="section-heading">
+              <h2>Target Job</h2>
+              <span id="saveStatus">Saved</span>
+            </div>
+            <label>
+              Target role
+              <input name="targetRole" />
+            </label>
+            <label>
+              Job description / company requirements
+              <textarea name="jobDescription" rows="7"></textarea>
+            </label>
+            <label>
+              Priority keywords
+              <textarea name="targetKeywords" rows="4"></textarea>
+            </label>
+            <div class="option-row">
+              <label class="inline-option">
+                <input name="atsSafeMode" type="checkbox" checked />
+                ATS-safe mode
+              </label>
+              <label class="inline-option">
+                <input name="compactMode" type="checkbox" checked />
+                Compact recruiter layout
+              </label>
+            </div>
+          </section>
+
+          <section class="tab-panel" data-panel="personal">
+            <div class="section-heading">
+              <h2>Personal Details</h2>
+            </div>
+            <label>
+              Full name
+              <input name="fullName" autocomplete="name" />
+            </label>
+            <div class="grid two">
+              <label>
+                Email
+                <input name="email" type="email" autocomplete="email" />
+              </label>
+              <label>
+                Phone
+                <input name="phone" autocomplete="tel" />
+              </label>
+            </div>
+            <div class="grid two">
+              <label>
+                Address
+                <input name="address" autocomplete="street-address" />
+              </label>
+              <label>
+                Age
+                <input name="age" type="number" min="15" max="80" />
+              </label>
+            </div>
+            <div class="grid two">
+              <label>
+                LinkedIn
+                <input name="linkedin" />
+              </label>
+              <label>
+                Portfolio
+                <input name="portfolio" />
+              </label>
+            </div>
+            <label>
+              Professional summary
+              <textarea name="summary" rows="4"></textarea>
+            </label>
+            <label class="photo-upload">
+              <span>Photo</span>
+              <input id="photoInput" type="file" accept="image/*" />
+            </label>
+          </section>
+
+          <section class="tab-panel" data-panel="education">
+            <div class="section-heading">
+              <h2>Education</h2>
+              <button class="ghost-action" type="button" data-add="education">Add education</button>
+            </div>
+            <div id="educationList" class="dynamic-list"></div>
+            <div class="section-heading compact">
+              <h2>Schooling</h2>
+              <button class="ghost-action" type="button" data-add="schooling">Add schooling</button>
+            </div>
+            <div id="schoolingList" class="dynamic-list"></div>
+          </section>
+
+          <section class="tab-panel" data-panel="skills">
+            <div class="section-heading">
+              <h2>Skills</h2>
+            </div>
+            <label>
+              Technical skills
+              <textarea name="technicalSkills" rows="3"></textarea>
+            </label>
+            <label>
+              Soft skills
+              <textarea name="softSkills" rows="3"></textarea>
+            </label>
+            <label>
+              Certifications
+              <textarea name="certifications" rows="3"></textarea>
+            </label>
+            <label>
+              Languages
+              <input name="languages" />
+            </label>
+          </section>
+
+          <section class="tab-panel" data-panel="experience">
+            <div class="section-heading">
+              <h2>Experience</h2>
+              <button class="ghost-action" type="button" data-add="experience">Add role</button>
+            </div>
+            <div id="experienceList" class="dynamic-list"></div>
+          </section>
+
+          <section class="tab-panel" data-panel="projects">
+            <div class="section-heading">
+              <h2>Projects</h2>
+              <button class="ghost-action" type="button" data-add="projects">Add project</button>
+            </div>
+            <div id="projectsList" class="dynamic-list"></div>
+          </section>
+
+          <section class="tab-panel" data-panel="extras">
+            <div class="section-heading">
+              <h2>Achievements</h2>
+            </div>
+            <label>
+              Achievements
+              <textarea name="achievements" rows="4"></textarea>
+            </label>
+            <label>
+              Interests
+              <input name="interests" />
+            </label>
+            <div class="tool-row">
+              <button class="ghost-action" id="fillExample" type="button">Fill example</button>
+              <button class="ghost-action" id="clearData" type="button">Clear data</button>
+            </div>
+          </section>
+        </form>
+      </aside>
+
+      <section class="workspace" aria-label="Resume preview and score">
+        <aside class="score-panel">
+          <div>
+            <p class="eyebrow">Recruiter ATS Score</p>
+            <div class="score-row">
+              <strong id="atsScore">0</strong>
+              <span>/100</span>
+            </div>
+          </div>
+          <div class="meter" aria-hidden="true"><span id="scoreMeter"></span></div>
+          <div class="score-breakdown" id="scoreBreakdown"></div>
+          <ul id="scoreTips" class="score-tips"></ul>
+        </aside>
+
+        <div class="page-toolbar" aria-label="Resume pages">
+          <span id="pageCount">1 page</span>
+          <span id="atsModeNote">ATS-safe mode keeps photo and age out of the resume.</span>
+        </div>
+        <div class="resume-stack" id="resumePreview" aria-label="Generated resume"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
