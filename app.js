@@ -24,6 +24,7 @@ const state = {
     compactMode: "on"
   },
   photo: "",
+  skillOrder: ["technicalSkills", "softSkills", "certifications", "languages"],
   education: [{ college: "", degree: "", cgpa: "", years: "", details: "" }],
   schooling: [{ school: "", board: "", score: "", years: "", details: "" }],
   experience: [{ role: "", company: "", years: "", details: "" }],
@@ -59,6 +60,14 @@ const templates = {
   ]
 };
 
+const draggableTypes = ["education", "schooling", "experience", "projects"];
+const skillFields = {
+  technicalSkills: { label: "Technical skills", type: "textarea", rows: 3, previewLabel: "Technical" },
+  softSkills: { label: "Soft skills", type: "textarea", rows: 3, previewLabel: "Core" },
+  certifications: { label: "Certifications", type: "textarea", rows: 3, previewLabel: "Certifications" },
+  languages: { label: "Languages", type: "input", previewLabel: "Languages" }
+};
+
 const storageKey = "resume-maker-state-v3";
 const pageHeightLimit = 1120;
 const cropState = {
@@ -75,9 +84,21 @@ function loadState() {
     const parsed = JSON.parse(saved);
     Object.assign(state, parsed);
     state.personal = { atsSafeMode: "on", compactMode: "on", ...state.personal };
+    normalizeStateShape();
   } catch {
     localStorage.removeItem(storageKey);
   }
+}
+
+function normalizeStateShape() {
+  state.skillOrder = [
+    ...new Set([...(state.skillOrder || []), ...Object.keys(skillFields)])
+  ].filter((key) => skillFields[key]);
+  draggableTypes.forEach((type) => {
+    if (!Array.isArray(state[type]) || !state[type].length) {
+      state[type] = [Object.fromEntries(templates[type].map(([key]) => [key, ""]))];
+    }
+  });
 }
 
 function persist() {
@@ -93,9 +114,15 @@ function switchTab(tabName) {
 function entryCard(type, item, index) {
   const card = document.createElement("div");
   card.className = "entry-card";
+  card.draggable = true;
+  card.dataset.dragType = type;
+  card.dataset.index = index;
   card.innerHTML = `
     <div class="entry-head">
-      <h3>${capitalize(type)} ${index + 1}</h3>
+      <div class="entry-title">
+        <button class="drag-handle" type="button" data-drag-handle aria-label="Move ${capitalize(type)} ${index + 1}">::</button>
+        <h3>${capitalize(type)} ${index + 1}</h3>
+      </div>
       <button class="remove-button" type="button" data-remove="${type}" data-index="${index}">Remove</button>
     </div>
   `;
@@ -116,11 +143,45 @@ function entryCard(type, item, index) {
 }
 
 function renderDynamicForms() {
-  ["education", "schooling", "experience", "projects"].forEach((type) => {
+  draggableTypes.forEach((type) => {
     const target = document.querySelector(`#${type}List`);
     target.innerHTML = "";
     state[type].forEach((item, index) => target.append(entryCard(type, item, index)));
   });
+  renderSkillForms();
+}
+
+function renderSkillForms() {
+  const target = document.querySelector("#skillsList");
+  target.innerHTML = "";
+  state.skillOrder.forEach((key, index) => target.append(skillCard(key, index)));
+}
+
+function skillCard(key, index) {
+  const config = skillFields[key];
+  const card = document.createElement("div");
+  card.className = "entry-card skill-card";
+  card.draggable = true;
+  card.dataset.dragType = "skills";
+  card.dataset.index = index;
+  card.innerHTML = `
+    <div class="entry-head">
+      <div class="entry-title">
+        <button class="drag-handle" type="button" data-drag-handle aria-label="Move ${config.label}">::</button>
+        <h3>${config.label}</h3>
+      </div>
+    </div>
+  `;
+
+  const wrap = document.createElement("label");
+  wrap.textContent = config.label;
+  const input = document.createElement(config.type === "textarea" ? "textarea" : "input");
+  input.name = key;
+  input.value = state.personal[key] || "";
+  if (config.type === "textarea") input.rows = config.rows || 3;
+  wrap.append(input);
+  card.append(wrap);
+  return card;
 }
 
 function fillStaticFields() {
@@ -205,12 +266,9 @@ function buildResumeBlocks() {
     ))
   ]);
 
-  const skillRows = [
-    ["Technical", splitList(p.technicalSkills)],
-    ["Core", splitList(p.softSkills)],
-    ["Certifications", splitList(p.certifications)],
-    ["Languages", splitList(p.languages)]
-  ].filter(([, items]) => items.length);
+  const skillRows = state.skillOrder
+    .map((key) => [skillFields[key].previewLabel, splitList(p[key])])
+    .filter(([, items]) => items.length);
   if (skillRows.length) {
     const skillBlock = document.createElement("div");
     skillBlock.className = "skill-cloud";
@@ -542,6 +600,79 @@ document.addEventListener("click", (event) => {
   }
 });
 
+document.addEventListener("pointerdown", (event) => {
+  const handle = event.target.closest("[data-drag-handle]");
+  const card = handle?.closest(".entry-card[data-drag-type]");
+  if (card) card.dataset.dragReady = "true";
+});
+
+document.addEventListener("pointerup", () => {
+  document.querySelectorAll(".entry-card[data-drag-ready]").forEach((card) => delete card.dataset.dragReady);
+});
+
+document.addEventListener("dragstart", (event) => {
+  const card = event.target.closest(".entry-card[data-drag-type]");
+  if (!card || card.dataset.dragReady !== "true") {
+    event.preventDefault();
+    return;
+  }
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", JSON.stringify({
+    type: card.dataset.dragType,
+    index: Number(card.dataset.index)
+  }));
+  card.classList.add("is-dragging");
+});
+
+document.addEventListener("dragend", (event) => {
+  const card = event.target.closest(".entry-card");
+  if (card) {
+    card.classList.remove("is-dragging");
+    delete card.dataset.dragReady;
+  }
+  document.querySelectorAll(".entry-card.is-drop-target").forEach((card) => card.classList.remove("is-drop-target"));
+});
+
+document.addEventListener("dragover", (event) => {
+  const card = event.target.closest(".entry-card[data-drag-type]");
+  if (!card) return;
+  event.preventDefault();
+  card.classList.add("is-drop-target");
+});
+
+document.addEventListener("dragleave", (event) => {
+  event.target.closest(".entry-card")?.classList.remove("is-drop-target");
+});
+
+document.addEventListener("drop", (event) => {
+  const card = event.target.closest(".entry-card[data-drag-type]");
+  if (!card) return;
+  event.preventDefault();
+  card.classList.remove("is-drop-target");
+
+  try {
+    const from = JSON.parse(event.dataTransfer.getData("text/plain"));
+    const to = {
+      type: card.dataset.dragType,
+      index: Number(card.dataset.index)
+    };
+    if (from.type !== to.type || from.index === to.index) return;
+    reorderEntries(from.type, from.index, to.index);
+  } catch {
+    return;
+  }
+});
+
+function reorderEntries(type, fromIndex, toIndex) {
+  const list = type === "skills" ? state.skillOrder : state[type];
+  if (!Array.isArray(list) || !list[fromIndex] || !list[toIndex]) return;
+  const [moved] = list.splice(fromIndex, 1);
+  list.splice(toIndex, 0, moved);
+  renderDynamicForms();
+  persist();
+  renderPreview();
+}
+
 photoInput.addEventListener("change", (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -585,6 +716,7 @@ clearDataButton.addEventListener("click", () => {
 });
 
 loadState();
+normalizeStateShape();
 renderDynamicForms();
 fillStaticFields();
 renderPreview();
