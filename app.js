@@ -1,4 +1,9 @@
 const form = document.querySelector("#resumeForm");
+const appShell = document.querySelector(".app-shell");
+const loginScreen = document.querySelector("#loginScreen");
+const loginForm = document.querySelector("#loginForm");
+const userStrip = document.querySelector("#userStrip");
+const logoutButton = document.querySelector("#logoutButton");
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".tab-panel");
 const saveStatus = document.querySelector("#saveStatus");
@@ -17,6 +22,10 @@ const cropY = document.querySelector("#cropY");
 const applyCropButton = document.querySelector("#applyCrop");
 const cancelCropButton = document.querySelector("#cancelCrop");
 const resetCropButton = document.querySelector("#resetCrop");
+const existingModal = document.querySelector("#existingModal");
+const existingTitle = document.querySelector("#existingTitle");
+const existingList = document.querySelector("#existingList");
+const closeExistingButton = document.querySelector("#closeExisting");
 
 const state = {
   personal: {
@@ -24,9 +33,10 @@ const state = {
     compactMode: "on"
   },
   photo: "",
-  skillOrder: ["technicalSkills", "softSkills", "certifications", "languages"],
+  skillOrder: ["technicalSkills", "softSkills", "languages"],
   education: [{ college: "", degree: "", cgpa: "", years: "", details: "" }],
   schooling: [{ school: "", board: "", score: "", years: "", details: "" }],
+  certifications: [{ title: "", issuer: "", validity: "", details: "" }],
   experience: [{ role: "", company: "", years: "", details: "" }],
   projects: [{ name: "", tech: "", link: "", details: "" }]
 };
@@ -46,30 +56,40 @@ const templates = {
     ["years", "Years", ""],
     ["details", "Highlights", "", "textarea"]
   ],
+  certifications: [
+    ["title", "Certificate title", ""],
+    ["issuer", "Issuing platform", ""],
+    ["validity", "Validity details", ""],
+    ["details", "Description", "", "textarea"]
+  ],
   experience: [
     ["role", "Role", ""],
     ["company", "Company", ""],
     ["years", "Duration", ""],
-    ["details", "Impact bullets", "", "textarea"]
+    ["details", "Description", "", "textarea"]
   ],
   projects: [
     ["name", "Project name", ""],
     ["tech", "Tools / Tech", ""],
     ["link", "Link", ""],
-    ["details", "Impact bullets", "", "textarea"]
+    ["details", "Description", "", "textarea"]
   ]
 };
 
-const draggableTypes = ["education", "schooling", "experience", "projects"];
+const draggableTypes = ["education", "schooling", "certifications", "experience", "projects"];
+const reusableTypes = [...draggableTypes, "skills"];
 const skillFields = {
   technicalSkills: { label: "Technical skills", type: "textarea", rows: 3, previewLabel: "Technical" },
   softSkills: { label: "Soft skills", type: "textarea", rows: 3, previewLabel: "Core" },
-  certifications: { label: "Certifications", type: "textarea", rows: 3, previewLabel: "Certifications" },
   languages: { label: "Languages", type: "input", previewLabel: "Languages" }
 };
 
 const storageKey = "resume-maker-state-v3";
+const accountsKey = "resume-maker-accounts-v1";
+const sessionKey = "resume-maker-current-user";
 const pageHeightLimit = 1120;
+let currentUserId = "";
+let accounts = {};
 const cropState = {
   image: null,
   zoom: 1,
@@ -78,7 +98,8 @@ const cropState = {
 };
 
 function loadState() {
-  const saved = localStorage.getItem(storageKey);
+  const account = accounts[currentUserId];
+  const saved = account?.resume ? JSON.stringify(account.resume) : localStorage.getItem(storageKey);
   if (!saved) return;
   try {
     const parsed = JSON.parse(saved);
@@ -94,6 +115,10 @@ function normalizeStateShape() {
   state.skillOrder = [
     ...new Set([...(state.skillOrder || []), ...Object.keys(skillFields)])
   ].filter((key) => skillFields[key]);
+  if (state.personal?.certifications && (!Array.isArray(state.certifications) || !state.certifications.some(hasAnyValue))) {
+    state.certifications = splitList(state.personal.certifications).map((title) => ({ title, issuer: "", validity: "", details: "" }));
+    delete state.personal.certifications;
+  }
   draggableTypes.forEach((type) => {
     if (!Array.isArray(state[type]) || !state[type].length) {
       state[type] = [Object.fromEntries(templates[type].map(([key]) => [key, ""]))];
@@ -102,7 +127,266 @@ function normalizeStateShape() {
 }
 
 function persist() {
-  localStorage.setItem(storageKey, JSON.stringify(state));
+  if (currentUserId) {
+    collectReusableDetails();
+    accounts[currentUserId] = {
+      ...accounts[currentUserId],
+      resume: JSON.parse(JSON.stringify(state)),
+      updatedAt: new Date().toISOString()
+    };
+    saveAccounts();
+  } else {
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  }
+  saveStatus.textContent = "Saved";
+}
+
+function readAccounts() {
+  try {
+    return JSON.parse(localStorage.getItem(accountsKey)) || {};
+  } catch {
+    localStorage.removeItem(accountsKey);
+    return {};
+  }
+}
+
+function saveAccounts() {
+  localStorage.setItem(accountsKey, JSON.stringify(accounts));
+}
+
+function loginUser(name, email) {
+  const cleanName = name.trim();
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanName || !cleanEmail) return;
+  currentUserId = cleanEmail;
+  accounts[currentUserId] = accounts[currentUserId] || {
+    name: cleanName,
+    email: cleanEmail,
+    library: createEmptyLibrary(),
+    resume: null,
+    createdAt: new Date().toISOString()
+  };
+  accounts[currentUserId].name = cleanName;
+  accounts[currentUserId].email = cleanEmail;
+  accounts[currentUserId].library = {
+    ...createEmptyLibrary(),
+    ...(accounts[currentUserId].library || {})
+  };
+  localStorage.setItem(sessionKey, currentUserId);
+  saveAccounts();
+  bootAppForUser();
+}
+
+function bootAppForUser() {
+  if (!currentUserId || !accounts[currentUserId]) {
+    showLogin();
+    return;
+  }
+  hideLogin();
+  Object.assign(state, getFreshState());
+  loadState();
+  normalizeStateShape();
+  prefillNewUserDetails();
+  renderDynamicForms();
+  fillStaticFields();
+  renderPreview();
+  persist();
+}
+
+function showLogin() {
+  loginScreen.classList.remove("is-hidden");
+  appShell.classList.add("is-locked");
+}
+
+function hideLogin() {
+  loginScreen.classList.add("is-hidden");
+  appShell.classList.remove("is-locked");
+  const account = accounts[currentUserId];
+  userStrip.textContent = account ? `Signed in as ${account.name} (${account.email})` : "";
+}
+
+function getFreshState() {
+  return {
+    personal: {
+      atsSafeMode: "on",
+      compactMode: "on"
+    },
+    photo: "",
+    skillOrder: ["technicalSkills", "softSkills", "languages"],
+    education: [{ college: "", degree: "", cgpa: "", years: "", details: "" }],
+    schooling: [{ school: "", board: "", score: "", years: "", details: "" }],
+    certifications: [{ title: "", issuer: "", validity: "", details: "" }],
+    experience: [{ role: "", company: "", years: "", details: "" }],
+    projects: [{ name: "", tech: "", link: "", details: "" }]
+  };
+}
+
+function prefillNewUserDetails() {
+  const account = accounts[currentUserId];
+  if (!state.personal.fullName) state.personal.fullName = account.name || "";
+  if (!state.personal.email) state.personal.email = account.email || "";
+}
+
+function createEmptyLibrary() {
+  return reusableTypes.reduce((library, type) => {
+    library[type] = [];
+    return library;
+  }, {});
+}
+
+function getLibrary() {
+  if (!accounts[currentUserId]) return createEmptyLibrary();
+  accounts[currentUserId].library = {
+    ...createEmptyLibrary(),
+    ...(accounts[currentUserId].library || {})
+  };
+  reusableTypes.forEach((type) => {
+    accounts[currentUserId].library[type] = dedupeLibraryEntries(type, accounts[currentUserId].library[type]);
+  });
+  return accounts[currentUserId].library;
+}
+
+function collectReusableDetails() {
+  if (!currentUserId) return;
+  const library = getLibrary();
+  draggableTypes.forEach((type) => {
+    state[type].filter((item) => isReusableReady(type, item)).forEach((item) => addToLibrary(type, item, false));
+  });
+  const skillSet = getCurrentSkillSet();
+  if (isReusableReady("skills", skillSet)) addToLibrary("skills", skillSet, false);
+  accounts[currentUserId].library = library;
+}
+
+function addToLibrary(type, item, shouldSave = true, force = false) {
+  const library = getLibrary();
+  const cleanItem = cleanLibraryItem(type, item);
+  if (!force && !isReusableReady(type, cleanItem)) return;
+  if (force && !hasAnyValue(cleanItem)) return;
+  const existingIndex = library[type].findIndex((entry) => isSameLibraryItem(type, entry, cleanItem));
+  if (existingIndex >= 0) {
+    library[type][existingIndex] = cleanItem;
+  } else {
+    library[type].unshift(cleanItem);
+  }
+  library[type] = dedupeLibraryEntries(type, library[type], force).slice(0, 30);
+  if (shouldSave) {
+    accounts[currentUserId].library = library;
+    saveAccounts();
+  }
+}
+
+function cleanLibraryItem(type, item) {
+  if (type === "skills") {
+    return Object.fromEntries(Object.keys(skillFields).map((key) => [key, (item[key] || "").trim()]));
+  }
+  return Object.fromEntries(templates[type].map(([key]) => [key, (item[key] || "").trim()]));
+}
+
+function getItemSignature(item) {
+  return JSON.stringify(item).toLowerCase();
+}
+
+function getIdentityFields(type) {
+  return {
+    education: ["college", "degree"],
+    schooling: ["school", "board"],
+    certifications: ["title", "issuer"],
+    experience: ["company", "role"],
+    projects: ["name", "link"],
+    skills: []
+  }[type] || [];
+}
+
+function isSameLibraryItem(type, first, second) {
+  const firstClean = cleanLibraryItem(type, first);
+  const secondClean = cleanLibraryItem(type, second);
+  if (getItemSignature(firstClean) === getItemSignature(secondClean)) return true;
+
+  const identityMatch = getIdentityFields(type).some((key) => {
+    const left = normalizeLibraryValue(firstClean[key]);
+    const right = normalizeLibraryValue(secondClean[key]);
+    return isSameLibraryValue(left, right);
+  });
+  if (identityMatch) return true;
+
+  return isSubsetItem(firstClean, secondClean) || isSubsetItem(secondClean, firstClean);
+}
+
+function isSubsetItem(candidate, fullItem) {
+  const filled = Object.entries(candidate).filter(([, value]) => normalizeLibraryValue(value));
+  if (!filled.length) return false;
+  return filled.every(([key, value]) => isSameLibraryValue(normalizeLibraryValue(fullItem[key]), normalizeLibraryValue(value)));
+}
+
+function normalizeLibraryValue(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function isSameLibraryValue(first, second) {
+  if (!first || !second) return false;
+  if (first === second) return true;
+  const shorter = first.length <= second.length ? first : second;
+  const longer = first.length > second.length ? first : second;
+  return shorter.length >= 4 && longer.startsWith(shorter);
+}
+
+function dedupeLibraryEntries(type, entries = [], keepDrafts = false) {
+  return entries.filter((entry) => keepDrafts ? hasAnyValue(cleanLibraryItem(type, entry)) : isReusableReady(type, entry)).reduce((result, entry) => {
+    const cleanEntry = cleanLibraryItem(type, entry);
+    const existingIndex = result.findIndex((saved) => isSameLibraryItem(type, saved, cleanEntry));
+    if (existingIndex >= 0) {
+      if (getEntryCompleteness(cleanEntry) >= getEntryCompleteness(result[existingIndex])) {
+        result[existingIndex] = cleanEntry;
+      }
+    } else {
+      result.push(cleanEntry);
+    }
+    return result;
+  }, []);
+}
+
+function countFilledFields(item) {
+  return Object.values(item).filter((value) => String(value || "").trim()).length;
+}
+
+function getEntryCompleteness(item) {
+  return countFilledFields(item) * 1000 + Object.values(item).join(" ").trim().length;
+}
+
+function isReusableReady(type, item) {
+  const cleanItem = type === "skills" ? cleanLibraryItem("skills", item) : cleanLibraryItem(type, item);
+  if (type === "education") return hasLongValue(cleanItem.college) && hasAnySupportingValue(cleanItem, ["degree", "cgpa", "years", "details"]);
+  if (type === "schooling") return hasLongValue(cleanItem.school) && hasAnySupportingValue(cleanItem, ["board", "score", "years", "details"]);
+  if (type === "certifications") return hasLongValue(cleanItem.title) && hasAnySupportingValue(cleanItem, ["issuer", "validity", "details"]);
+  if (type === "experience") return hasAnySupportingValue(cleanItem, ["role", "company", "years", "details"]);
+  if (type === "projects") return hasLongValue(cleanItem.name) || hasLongValue(cleanItem.details, 12);
+  if (type === "skills") return Object.values(cleanItem).some((value) => hasLongValue(value, 4));
+  return hasAnyValue(cleanItem);
+}
+
+function hasLongValue(value, minLength = 4) {
+  return String(value || "").trim().length >= minLength;
+}
+
+function hasAnySupportingValue(item, keys) {
+  return keys.some((key) => hasLongValue(item[key], 2));
+}
+
+function getCurrentSkillSet() {
+  return Object.fromEntries(Object.keys(skillFields).map((key) => [key, state.personal[key] || ""]));
+}
+
+function saveCurrentEntries(type) {
+  if (type === "skills") {
+    collectStaticFields();
+    addToLibrary("skills", getCurrentSkillSet(), true, true);
+  } else if (state[type]) {
+    state[type].filter(hasAnyValue).forEach((item) => addToLibrary(type, item, false, true));
+    saveAccounts();
+  }
   saveStatus.textContent = "Saved";
 }
 
@@ -184,6 +468,76 @@ function skillCard(key, index) {
   return card;
 }
 
+function openExistingPicker(type) {
+  const library = getLibrary();
+  library[type] = dedupeLibraryEntries(type, library[type] || [], true);
+  saveAccounts();
+  const entries = library[type] || [];
+  existingTitle.textContent = `Add from existing ${type === "skills" ? "skills" : capitalize(type)}`;
+  existingList.innerHTML = entries.length
+    ? entries.map((item, index) => existingOption(type, item, index)).join("")
+    : `<div class="empty-existing">No saved ${type} yet. Add details once and they will appear here.</div>`;
+  existingModal.dataset.type = type;
+  existingModal.classList.add("is-open");
+  existingModal.setAttribute("aria-hidden", "false");
+}
+
+function existingOption(type, item, index) {
+  return `
+    <button class="existing-option" type="button" data-use-existing="${type}" data-index="${index}">
+      <strong>${escapeHtml(getExistingTitle(type, item))}</strong>
+      <span>${escapeHtml(getExistingMeta(type, item))}</span>
+    </button>
+  `;
+}
+
+function getExistingTitle(type, item) {
+  if (type === "education") return [item.degree, item.college].filter(Boolean).join(" - ") || "Education detail";
+  if (type === "schooling") return [item.board, item.school].filter(Boolean).join(" - ") || "Schooling detail";
+  if (type === "certifications") return item.title || "Certification detail";
+  if (type === "experience") return [item.role, item.company].filter(Boolean).join(" - ") || "Experience detail";
+  if (type === "projects") return item.name || "Project detail";
+  return splitList(item.technicalSkills || item.softSkills || item.certifications || item.languages).slice(0, 4).join(", ") || "Skill set";
+}
+
+function getExistingMeta(type, item) {
+  if (type === "skills") {
+    return Object.keys(skillFields)
+      .map((key) => item[key])
+      .filter(Boolean)
+      .join(" | ");
+  }
+  return Object.values(item).filter(Boolean).join(" | ");
+}
+
+function closeExistingPicker() {
+  existingModal.classList.remove("is-open");
+  existingModal.setAttribute("aria-hidden", "true");
+  existingList.innerHTML = "";
+}
+
+function useExistingItem(type, index) {
+  const item = getLibrary()[type]?.[index];
+  if (!item) return;
+  if (type === "skills") {
+    Object.keys(skillFields).forEach((key) => {
+      if (item[key]) state.personal[key] = item[key];
+    });
+    fillStaticFields();
+  } else {
+    const cleanItem = cleanLibraryItem(type, item);
+    if (state[type].length === 1 && !hasAnyValue(state[type][0])) {
+      state[type][0] = cleanItem;
+    } else {
+      state[type].push(cleanItem);
+    }
+    renderDynamicForms();
+  }
+  persist();
+  renderPreview();
+  closeExistingPicker();
+}
+
 function fillStaticFields() {
   Object.entries(state.personal || {}).forEach(([key, value]) => {
     const field = form.elements[key];
@@ -229,6 +583,7 @@ function getResumeText() {
     Object.values(p).join(" "),
     ...state.education.flatMap(Object.values),
     ...state.schooling.flatMap(Object.values),
+    ...state.certifications.flatMap(Object.values),
     ...state.experience.flatMap(Object.values),
     ...state.projects.flatMap(Object.values)
   ].join(" ").toLowerCase();
@@ -278,16 +633,25 @@ function buildResumeBlocks() {
     addSection(blocks, "Skills", [skillBlock]);
   }
 
+  addSection(blocks, "Certifications", state.certifications.filter(hasAnyValue).map((item) => itemBlock(
+    item.title || "",
+    [item.issuer, item.validity].filter(Boolean).join(" | "),
+    item.details || "",
+    "description"
+  )));
+
   addSection(blocks, "Experience", state.experience.filter(hasAnyValue).map((item) => itemBlock(
     [item.role, item.company].filter(Boolean).join(" - "),
     item.years || "",
-    splitBullets(item.details)
+    item.details || "",
+    "description"
   )));
 
   addSection(blocks, "Projects", state.projects.filter(hasAnyValue).map((item) => itemBlock(
     item.name || "",
     [item.tech, item.link].filter(Boolean).join(" | "),
-    splitBullets(item.details)
+    item.details || "",
+    "description"
   )));
 
   const extras = [
@@ -308,15 +672,27 @@ function addSection(blocks, title, children = []) {
   blocks.push(section);
 }
 
-function itemBlock(title, meta, bullets) {
+function itemBlock(title, meta, content, mode = "bullets") {
   const item = document.createElement("div");
   item.className = "resume-item";
+  const description = normalizeDescription(content);
+  const body = mode === "description"
+    ? `${description ? `<p>${escapeHtml(description)}</p>` : ""}`
+    : `${content.length ? `<ul>${content.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}</ul>` : ""}`;
   item.innerHTML = `
     ${title ? `<strong>${escapeHtml(title)}</strong>` : ""}
     ${meta ? `<div class="meta">${escapeHtml(meta)}</div>` : ""}
-    ${bullets.length ? `<ul>${bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}</ul>` : ""}
+    ${body}
   `;
   return item;
+}
+
+function normalizeDescription(value) {
+  return String(value || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ");
 }
 
 function renderPreview() {
@@ -385,7 +761,7 @@ function updateAtsScore() {
     {
       name: "Skills",
       points: 16,
-      earned: scoreRange(splitList(p.technicalSkills).length, 8, 10) + scoreRange(splitList(p.softSkills).length, 3, 4) + scoreBool(Boolean(p.certifications), 2),
+      earned: scoreRange(splitList(p.technicalSkills).length, 8, 10) + scoreRange(splitList(p.softSkills).length, 3, 4) + scoreBool(state.certifications.some((item) => item.title && item.issuer), 2),
       tip: "Add role-specific tools, soft skills, and certifications"
     },
     {
@@ -488,17 +864,20 @@ function fillExample() {
     summary: "Seeking a software engineering internship where I can apply React, JavaScript, SQL, and analytics experience to build reliable products for business users.",
     technicalSkills: "React, JavaScript, SQL, Python, APIs, Power BI, HTML, CSS",
     softSkills: "Leadership, communication, teamwork, problem solving",
-    certifications: "Google Data Analytics, JavaScript Algorithms",
     languages: "English, Hindi, Telugu",
     achievements: "Won a campus hackathon for building an analytics dashboard used by 120 students\nLed a 4-member project team and delivered the prototype 2 weeks early",
     interests: "Product strategy, analytics, public speaking"
   };
   state.education = [{ college: "ABC College", degree: "B.Tech Computer Science", cgpa: "8.7 CGPA", years: "2022 - 2026", details: "Coursework in data structures, databases, web engineering, and analytics" }];
   state.schooling = [{ school: "ABC High School", board: "CBSE Class XII", score: "92%", years: "2020 - 2022", details: "Science stream with mathematics and computer science" }];
-  state.experience = [{ role: "Data Analyst Intern", company: "Growth Labs", years: "May 2025 - Aug 2025", details: "Built Power BI dashboards for 5 business teams\nAutomated weekly SQL reports and saved 6 hours per week\nImproved stakeholder decision speed by 30%" }];
+  state.certifications = [
+    { title: "Google Data Analytics", issuer: "Coursera", validity: "Issued 2025", details: "Completed practical analytics training covering spreadsheets, SQL, visualization, and data-driven decision making." },
+    { title: "JavaScript Algorithms", issuer: "freeCodeCamp", validity: "Lifetime", details: "Practiced JavaScript fundamentals, algorithmic problem solving, and reusable coding patterns." }
+  ];
+  state.experience = [{ role: "Data Analyst Intern", company: "Growth Labs", years: "May 2025 - Aug 2025", details: "Built Power BI dashboards for 5 business teams, automated weekly SQL reports to save 6 hours per week, and improved stakeholder decision speed by 30%." }];
   state.projects = [
-    { name: "AI Resume Analyzer", tech: "React, JavaScript, NLP", link: "github.com/bharath/resume-ai", details: "Created an ATS-friendly resume generator with instant scoring\nMatched resume text against 30 target job keywords\nGenerated a printable multi-page resume in under 1 second" },
-    { name: "Sales Dashboard", tech: "SQL, Power BI, Excel", link: "", details: "Analyzed 10,000 sales records\nBuilt dashboard views for revenue, region, and product trends\nReduced manual reporting time by 40%" }
+    { name: "AI Resume Analyzer", tech: "React, JavaScript, NLP", link: "github.com/bharath/resume-ai", details: "Created an ATS-friendly resume generator with instant scoring, keyword matching against target job descriptions, and printable multi-page resume output in under 1 second." },
+    { name: "Sales Dashboard", tech: "SQL, Power BI, Excel", link: "", details: "Analyzed 10,000 sales records and built dashboard views for revenue, region, and product trends, reducing manual reporting time by 40%." }
   ];
   renderDynamicForms();
   fillStaticFields();
@@ -565,6 +944,17 @@ function applyCroppedPhoto() {
 
 tabs.forEach((tab) => tab.addEventListener("click", () => switchTab(tab.dataset.tab)));
 
+loginForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  loginUser(loginForm.elements.loginName.value, loginForm.elements.loginEmail.value);
+});
+
+logoutButton.addEventListener("click", () => {
+  localStorage.removeItem(sessionKey);
+  currentUserId = "";
+  showLogin();
+});
+
 form.addEventListener("input", (event) => {
   saveStatus.textContent = "Saving";
   if (event.target.name.includes(".")) {
@@ -577,8 +967,12 @@ form.addEventListener("input", (event) => {
 });
 
 document.addEventListener("click", (event) => {
-  const addType = event.target.dataset?.add;
-  const removeType = event.target.dataset?.remove;
+  const clickedControl = event.target.closest("button");
+  const addType = clickedControl?.dataset?.add;
+  const removeType = clickedControl?.dataset?.remove;
+  const existingType = clickedControl?.dataset?.existing;
+  const saveCurrentType = clickedControl?.dataset?.saveCurrent;
+  const useExistingType = clickedControl?.dataset?.useExisting;
 
   if (addType) {
     const empty = Object.fromEntries(templates[addType].map(([key]) => [key, ""]));
@@ -588,8 +982,22 @@ document.addEventListener("click", (event) => {
     renderPreview();
   }
 
+  if (existingType) {
+    collectReusableDetails();
+    saveAccounts();
+    openExistingPicker(existingType);
+  }
+
+  if (saveCurrentType) {
+    saveCurrentEntries(saveCurrentType);
+  }
+
+  if (useExistingType) {
+    useExistingItem(useExistingType, Number(clickedControl.dataset.index));
+  }
+
   if (removeType) {
-    const index = Number(event.target.dataset.index);
+    const index = Number(clickedControl.dataset.index);
     state[removeType].splice(index, 1);
     if (!state[removeType].length) {
       state[removeType].push(Object.fromEntries(templates[removeType].map(([key]) => [key, ""])));
@@ -698,6 +1106,10 @@ resetCropButton.addEventListener("click", () => {
   resetCropValues();
   renderCropCanvas();
 });
+closeExistingButton.addEventListener("click", closeExistingPicker);
+existingModal.addEventListener("click", (event) => {
+  if (event.target === existingModal) closeExistingPicker();
+});
 
 printButton.addEventListener("click", () => {
   collectStaticFields();
@@ -709,14 +1121,21 @@ printButton.addEventListener("click", () => {
 fillExampleButton.addEventListener("click", fillExample);
 
 clearDataButton.addEventListener("click", () => {
+  if (currentUserId && accounts[currentUserId]) {
+    accounts[currentUserId].resume = getFreshState();
+    accounts[currentUserId].library = createEmptyLibrary();
+    saveAccounts();
+  }
   localStorage.removeItem(storageKey);
   localStorage.removeItem("resume-maker-state-v1");
   localStorage.removeItem("resume-maker-state-v2");
   window.location.reload();
 });
 
-loadState();
-normalizeStateShape();
-renderDynamicForms();
-fillStaticFields();
-renderPreview();
+accounts = readAccounts();
+currentUserId = localStorage.getItem(sessionKey) || "";
+if (currentUserId && accounts[currentUserId]) {
+  bootAppForUser();
+} else {
+  showLogin();
+}

@@ -41,6 +41,51 @@ button {
   min-height: 100vh;
 }
 
+.app-shell.is-locked {
+  display: none;
+}
+
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(135deg, rgba(18, 108, 131, 0.12), rgba(180, 95, 60, 0.12)),
+    #eef3f6;
+}
+
+.login-screen.is-hidden {
+  display: none;
+}
+
+.login-card {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.login-card h1 {
+  font-size: clamp(1.65rem, 5vw, 2.3rem);
+}
+
+.login-copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  font-weight: 650;
+}
+
+.login-form {
+  display: grid;
+  gap: 14px;
+}
+
 .builder-panel {
   background: var(--panel);
   border-right: 1px solid var(--line);
@@ -55,6 +100,21 @@ button {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.top-actions,
+.button-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.user-strip {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
 }
 
 .eyebrow {
@@ -261,6 +321,78 @@ textarea:focus {
   padding: 20px;
   background: rgba(10, 20, 28, 0.58);
   z-index: 20;
+}
+
+.existing-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 20, 28, 0.58);
+  z-index: 21;
+}
+
+.existing-modal.is-open {
+  display: grid;
+}
+
+.existing-dialog {
+  width: min(100%, 560px);
+  height: min(720px, calc(100vh - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 8px;
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+
+.existing-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+}
+
+.existing-option {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  color: var(--ink);
+  padding: 12px;
+}
+
+.existing-option:hover,
+.existing-option:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(18, 108, 131, 0.12);
+  outline: none;
+}
+
+.existing-option span,
+.empty-existing {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.empty-existing {
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  font-weight: 700;
 }
 
 .crop-modal.is-open {
@@ -661,6 +793,15 @@ textarea:focus {
     padding: 16px;
   }
 
+  .existing-modal {
+    padding: 10px;
+  }
+
+  .existing-dialog {
+    height: calc(100vh - 20px);
+    padding: 14px;
+  }
+
   .topbar,
   .section-heading,
   .resume-header {
@@ -691,6 +832,7 @@ textarea:focus {
 
   .builder-panel,
   .score-panel,
+  .page-toolbar,
   .crop-modal {
     display: none;
   }

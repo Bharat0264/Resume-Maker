@@ -7,14 +7,37 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <section class="login-screen" id="loginScreen" aria-label="Login">
+      <div class="login-card">
+        <p class="eyebrow">Resume Maker</p>
+        <h1>Sign in to build from your saved details</h1>
+        <p class="login-copy">Your schooling, skills, projects, and work details stay in this browser so you can reuse them for every job requirement.</p>
+        <form id="loginForm" class="login-form" autocomplete="on">
+          <label>
+            Full name
+            <input name="loginName" autocomplete="name" required />
+          </label>
+          <label>
+            Email
+            <input name="loginEmail" type="email" autocomplete="email" required />
+          </label>
+          <button class="primary-action" type="submit">Continue</button>
+        </form>
+      </div>
+    </section>
+
     <main class="app-shell">
       <aside class="builder-panel" aria-label="Resume details">
         <header class="topbar">
           <div>
             <p class="eyebrow">Resume Maker</p>
             <h1>Build a polished resume in seconds</h1>
+            <div class="user-strip" id="userStrip" aria-live="polite"></div>
           </div>
-          <button class="primary-action" id="printResume" type="button">Export PDF</button>
+          <div class="top-actions">
+            <button class="ghost-action" id="logoutButton" type="button">Switch user</button>
+            <button class="primary-action" id="printResume" type="button">Export PDF</button>
+          </div>
         </header>
 
         <nav class="tabs" aria-label="Resume sections">
@@ -108,12 +131,20 @@
           <section class="tab-panel" data-panel="education">
             <div class="section-heading">
               <h2>Education</h2>
-              <button class="ghost-action" type="button" data-add="education">Add education</button>
+              <div class="button-pair">
+                <button class="ghost-action" type="button" data-save-current="education">Save current</button>
+                <button class="ghost-action" type="button" data-add="education">Add new</button>
+                <button class="ghost-action" type="button" data-existing="education">Add from existing</button>
+              </div>
             </div>
             <div id="educationList" class="dynamic-list"></div>
             <div class="section-heading compact">
               <h2>Schooling</h2>
-              <button class="ghost-action" type="button" data-add="schooling">Add schooling</button>
+              <div class="button-pair">
+                <button class="ghost-action" type="button" data-save-current="schooling">Save current</button>
+                <button class="ghost-action" type="button" data-add="schooling">Add new</button>
+                <button class="ghost-action" type="button" data-existing="schooling">Add from existing</button>
+              </div>
             </div>
             <div id="schoolingList" class="dynamic-list"></div>
           </section>
@@ -121,14 +152,31 @@
           <section class="tab-panel" data-panel="skills">
             <div class="section-heading">
               <h2>Skills</h2>
+              <div class="button-pair">
+                <button class="ghost-action" type="button" data-save-current="skills">Save skills</button>
+                <button class="ghost-action" type="button" data-existing="skills">Add from existing</button>
+              </div>
             </div>
             <div id="skillsList" class="dynamic-list"></div>
+            <div class="section-heading compact">
+              <h2>Certifications</h2>
+              <div class="button-pair">
+                <button class="ghost-action" type="button" data-save-current="certifications">Save current</button>
+                <button class="ghost-action" type="button" data-add="certifications">Add new</button>
+                <button class="ghost-action" type="button" data-existing="certifications">Add from existing</button>
+              </div>
+            </div>
+            <div id="certificationsList" class="dynamic-list"></div>
           </section>
 
           <section class="tab-panel" data-panel="experience">
             <div class="section-heading">
               <h2>Experience</h2>
-              <button class="ghost-action" type="button" data-add="experience">Add role</button>
+              <div class="button-pair">
+                <button class="ghost-action" type="button" data-save-current="experience">Save current</button>
+                <button class="ghost-action" type="button" data-add="experience">Add new</button>
+                <button class="ghost-action" type="button" data-existing="experience">Add from existing</button>
+              </div>
             </div>
             <div id="experienceList" class="dynamic-list"></div>
           </section>
@@ -136,7 +184,11 @@
           <section class="tab-panel" data-panel="projects">
             <div class="section-heading">
               <h2>Projects</h2>
-              <button class="ghost-action" type="button" data-add="projects">Add project</button>
+              <div class="button-pair">
+                <button class="ghost-action" type="button" data-save-current="projects">Save current</button>
+                <button class="ghost-action" type="button" data-add="projects">Add new</button>
+                <button class="ghost-action" type="button" data-existing="projects">Add from existing</button>
+              </div>
             </div>
             <div id="projectsList" class="dynamic-list"></div>
           </section>
@@ -213,6 +265,16 @@
           <button class="ghost-action" id="resetCrop" type="button">Reset</button>
           <button class="primary-action" id="applyCrop" type="button">Use photo</button>
         </div>
+      </div>
+    </div>
+
+    <div class="existing-modal" id="existingModal" aria-hidden="true">
+      <div class="existing-dialog" role="dialog" aria-modal="true" aria-labelledby="existingTitle">
+        <div class="crop-head">
+          <h2 id="existingTitle">Add from existing</h2>
+          <button class="icon-button" id="closeExisting" type="button" aria-label="Close existing details">x</button>
+        </div>
+        <div id="existingList" class="existing-list"></div>
       </div>
     </div>
 
